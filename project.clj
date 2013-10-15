@@ -14,7 +14,7 @@
       :global-vars   { *warn-on-reflection* true }
       :resource-dirs ["logs"]
       :jvm-opts [
-        "-Djava.util.logging.config.file=resources/logging.properties"
+        "-Djava.util.logging.config.file=logs/logging.properties"
       ]
     }
   }

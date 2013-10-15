@@ -147,13 +147,6 @@
       (and (= :connected state) (:read-bufs socket))  (bit-or SelectionKey/OP_READ)
       (and (= :connected state) (:write-bufs socket)) (bit-or SelectionKey/OP_WRITE))))
 
-(defn opts-str [opts]
-  (str
-    (if (zero? (bit-and opts SelectionKey/OP_ACCEPT))  "-" "A")
-    (if (zero? (bit-and opts SelectionKey/OP_CONNECT)) "-" "C")
-    (if (zero? (bit-and opts SelectionKey/OP_READ))    "-" "R")
-    (if (zero? (bit-and opts SelectionKey/OP_WRITE))   "-" "W")))
-
 (defn exhausted? [bufs]
   (zero? (.remaining (last bufs))))
 
@@ -161,7 +154,7 @@
   (try
     (when-let [net-chan (:net-chan @socket-ref)]
       (.close net-chan))
-    (catch IOException e)) ;; ignore
+    (catch IOException e :ignore))
   (swap! socket-ref dissoc :net-chan))
 
 (defn detect-connecting [sockets]
@@ -234,24 +227,22 @@
             (.configureBlocking new-net-chan false)
             (swap! sockets conj (on-accepted socket-ref new-net-chan))))
 
-        (catch java.net.ConnectException e
-          (logging/debug "Cannot connect" id (.getMessage e))
-          (close-net-chan socket-ref)
-          (on-conn-dropped socket-ref))
-        (catch ClosedChannelException e
-          (logging/debug "Socket closed" id)
-          (close-net-chan socket-ref)
-          (on-conn-dropped socket-ref))
-        (catch IOException e ;; handle IOException: Connection reset by peer
-          (logging/warn e "Socket error" id)
+        (catch Exception e
+          (cond
+            (instance? java.net.ConnectException e)
+              (logging/debug "Cannot connect" id (.getMessage e))
+            (instance? IOException e)
+              (logging/debug "Socket closed" id)
+            :else
+              (logging/error e "Socket error" id))
           (close-net-chan socket-ref)
           (on-conn-dropped socket-ref))))
 
     (.clear (.selectedKeys selector))
-    (if @running?
-      (recur)
-      (doseq [socket-ref @sockets]
-        (close-net-chan socket-ref)))))
+    (when @running?
+      (recur)))
+    (doseq [socket-ref @sockets]
+      (close-net-chan socket-ref)))
 
 (defn event-loop []
   (let [selector (Selector/open)
@@ -259,7 +250,7 @@
         env      { :selector selector
                    :running? running?
                    :sockets  (atom #{}) }
-        thread   (in-thread "synchro-event-loop" event-loop-impl env)]
+        thread   (in-thread "net.async.tcp-event-loop" event-loop-impl env)]
     (wait-ref running? true?)
     (assoc env :thread thread)))
 

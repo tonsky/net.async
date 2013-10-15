@@ -36,6 +36,8 @@ This library is aimed at providing reliable, high-level, bidirectional message-o
 
 Client will automatically reconnect if it loses its connection to the server. During that period, you'll get `:disconnected` messages from `read-chan`. Once connection is established, you'll get `:connected` message and then normal communication will resume.
 
+As a side-effect of this, you can start client *before* you start server. Once server becomes live, client will establish the connection and start sending/receiving messages, all of this without any effort from your side.
+
 #### Server
 
 ```clojure

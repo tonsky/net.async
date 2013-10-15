@@ -138,8 +138,8 @@
     (reset! (:running? host2) false)))
 
 ;; SAMPLE ECHO SERVER
-;; lein trampoline run -m synchro.test-tcp/test-server &
-;; lein trampoline run -m synchro.test-tcp/test-client
+;; lein trampoline run -m net.async.test-tcp/test-server &
+;; lein trampoline run -m net.async.test-tcp/test-client
 
 (defn parse-endpoint [endpoint]
   (let [[_ host port] (re-matches #"(?:([^:]*)\:)?(\d+)" endpoint)]
