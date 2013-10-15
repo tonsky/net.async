@@ -35,14 +35,6 @@
              name)
     (.start)))
 
-(defn wait-ref [ref pred]
-  (let [key   (rand)
-        latch (promise)]
-    (add-watch ref key (fn [_ _ _ new] (when (pred new) (deliver latch true))))
-    (when-not (pred @ref)
-      @latch)
-    (remove-watch ref key)))
-
 (defn now [] (System/currentTimeMillis))
 
 ;; SOCKET CALLBACKS
@@ -187,9 +179,9 @@
       (close-net-chan socket-ref)
       (on-conn-dropped socket-ref))))
 
-(defn event-loop-impl [{:keys [sockets running? selector] :as env}]
+(defn event-loop-impl [{:keys [sockets started? running? selector] :as env}]
   (add-watches env)
-  (reset! running? true)
+  (deliver started? true)
   (loop []
     (detect-connecting sockets)
     (detect-stuck sockets)
@@ -246,13 +238,16 @@
 
 (defn event-loop []
   (let [selector (Selector/open)
-        running? (atom false)
         env      { :selector selector
-                   :running? running?
+                   :started? (promise)
+                   :running? (atom true)
                    :sockets  (atom #{}) }
-        thread   (in-thread "net.async.tcp-event-loop" event-loop-impl env)]
-    (wait-ref running? true?)
+        thread   (in-thread "net.async.tcp/event-loop" event-loop-impl env)]
+    @(:started? env)
     (assoc env :thread thread)))
+
+(defn shutdown! [event-loop]
+  (reset! (:running? event-loop) false))
 
 ;; CLIENT INTERFACE
 

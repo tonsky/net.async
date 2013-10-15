@@ -26,8 +26,8 @@
     (write-str client "xyz")
     (close! (:write-chan client))
     (is (= (repeatedly 5 #(read-str server)) [:connected "abc" "def" "xyz" :closed]))
-    (reset! (:running? host1) false)
-    (reset! (:running? host2) false)))
+    (shutdown! host1)
+    (shutdown! host2)))
 
 (deftest test-poll
   (let [host1    (event-loop)
@@ -40,8 +40,8 @@
     (write-str server "xyz")
     (is (= (repeatedly 4 #(read-str client)) [:connected "abc" "def" "xyz"]))
     (close! (:write-chan client))
-    (reset! (:running? host1) false)
-    (reset! (:running? host2) false)))
+    (shutdown! host1)
+    (shutdown! host2)))
 
 (deftest test-request-reply
   (let [host1    (event-loop)
@@ -56,8 +56,8 @@
     (write-str server "rep")
     (is (= (read-str client) "rep"))
     (close! (:write-chan client))
-    (reset! (:running? host1) false)
-    (reset! (:running? host2) false)))
+    (shutdown! host1)
+    (shutdown! host2)))
 
 (deftest test-two-clients
   (let [host1    (event-loop)
@@ -88,9 +88,9 @@
     (is (= (read-str server2) :closed))
     (is (= (read-str server1) :closed))
 
-    (reset! (:running? host1) false)
-    (reset! (:running? host2) false)
-    (reset! (:running? host3) false)))
+    (shutdown! host1)
+    (shutdown! host2)
+    (shutdown! host3)))
 
 (deftest test-auto-reconnect
   (let [host1    (event-loop)
@@ -103,7 +103,7 @@
     (write-str client "req")
     (is (= (read-str server) "req"))
 
-    (reset! (:running? host1) false)
+    (shutdown! host1)
     (is (= (read-str client) :disconnected))
 
     (let [host1    (event-loop)
@@ -114,8 +114,8 @@
       (write-str client "req")
       (is (= (read-str server) "req"))
 
-      (reset! (:running? host1) false)
-      (reset! (:running? host2) false))))
+      (shutdown! host1)
+      (shutdown! host2))))
 
 (deftest test-close-during-disconnected
   (let [host1    (event-loop)
@@ -134,8 +134,8 @@
     (close! (:write-chan client))
     (is (= (read-str client) :closed))
 
-    (reset! (:running? host1) false)
-    (reset! (:running? host2) false)))
+    (shutdown! host1)
+    (shutdown! host2)))
 
 ;; SAMPLE ECHO SERVER
 ;; lein trampoline run -m net.async.test-tcp/test-server &

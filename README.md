@@ -8,6 +8,10 @@ This library is aimed at providing reliable, high-level, bidirectional message-o
 4. Stable interface: chans stay valid to use no matter what socket/network conditions are. net.async will handle underlying resource/socket management for you.
 5. No exceptions: disconnects are normal state of network connection and are exposed explicitly at top-level interface.
 
+Here’s how it works:
+
+<img src="https://dl.dropboxusercontent.com/u/561580/lj/net.async.tcp_scheme.jpg" width=400 height=300/>
+
 #### Types
 
     <event-loop>    is { : running? <atom [true/false]> }
@@ -49,7 +53,7 @@ As a side-effect of this, you can start client *before* you start server. Once s
 #### Shutting down
 
 ```clojure
-(reset! (:running? <event-loop>) false)
+(shutdown! <event-loop>)
 ```
 
 #### Sample echo server/client
