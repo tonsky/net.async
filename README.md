@@ -1,5 +1,4 @@
-Network communications with clojure.core.async interface
-========================================================
+### Network communications with clojure.core.async interface
 
 This library is aimed at providing reliable, high-level, bidirectional message-oriented communication over TCP/IP.
 
@@ -9,7 +8,7 @@ This library is aimed at providing reliable, high-level, bidirectional message-o
 4. Stable interface: chans stay valid to use no matter what socket/network conditions are. net.async will handle underlying resource/socket management for you.
 5. No exceptions: disconnects are normal state of network connection and are exposed explicitly at top-level interface.
 
-### Types
+#### Types
 
     <event-loop>    is { : running? <atom [true/false]> }
     <client-socket> is { :read-chan  <chan>
@@ -17,7 +16,7 @@ This library is aimed at providing reliable, high-level, bidirectional message-o
     <accept-socket> is { :accept-chan <chan> }
     <payload>       is byte[]
 
-### Preparation
+#### Preparation
 
 ```clojure
 (require '[clojure.core.async :refer [<!! >!! close!]])
@@ -26,7 +25,7 @@ This library is aimed at providing reliable, high-level, bidirectional message-o
 (event-loop) → <event-loop>
 ```
 
-### Client
+#### Client
 
 ```clojure
 (connect <event-loop> {:host "127.0.0.1" :port 9988}) → <client-socket>
@@ -37,7 +36,7 @@ This library is aimed at providing reliable, high-level, bidirectional message-o
 
 Client will automatically reconnect if it loses its connection to the server. During that period, you'll get `:disconnected` messages from `read-chan`. Once connection is established, you'll get `:connected` message and then normal communication will resume.
 
-### Server
+#### Server
 
 ```clojure
 (accept <event-loop> {:port 9988}) → <accept-socket>
@@ -45,13 +44,13 @@ Client will automatically reconnect if it loses its connection to the server. Du
 (close! accept-chan)
 ```
 
-### Shutting down
+#### Shutting down
 
 ```clojure
 (reset! (:running? <event-loop>) false)
 ```
 
-### Sample echo server/client
+#### Sample echo server/client
 
 ```clojure
 (defn echo-server []
