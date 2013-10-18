@@ -3,7 +3,7 @@
     [clojure.set :as set]
     [clojure.string :as string]
     [clojure.tools.logging :as logging]
-    [clojure.core.async :refer [>!! <!! chan close! go <! >! thread timeout alts!]])
+    [clojure.core.async :refer [>!! <!! chan close! go <! >! thread timeout alt!]])
   (:import
     [java.util UUID]
     [java.nio  ByteBuffer]
@@ -23,8 +23,6 @@
 
 (defn buf-array [& xs]
   (into-array ByteBuffer xs))
-
-(def ^:const heartbeat 5000)
 
 (defn in-thread [name f & args]
   (doto
@@ -64,18 +62,22 @@
 (defn on-write-done [socket-ref]
   (swap! socket-ref dissoc :write-bufs)
   (go
-    (let [[payload chan] (alts! [(:write-chan @socket-ref) (timeout heartbeat)])]
-      (if (= chan (:write-chan @socket-ref))
-        (if payload
-          (swap! socket-ref assoc :write-bufs (write-bufs payload))
-          (swap! socket-ref assoc :state :closed))
-        (swap! socket-ref assoc :write-bufs (write-bufs []))))))
+    (alt!
+      (:write-chan @socket-ref)
+        ([payload]
+          (if payload
+            (swap! socket-ref assoc :write-bufs (write-bufs payload))
+            (swap! socket-ref assoc :state :closed)))
+      (timeout (:heartbeat-period @socket-ref))
+        ([_] (swap! socket-ref assoc :write-bufs (write-bufs []))))))
 
-(defn new-socket [& {:as opts}]
+(defn new-socket [opts]
   (doto
     (atom (merge { :id         (str "/" (+ 1000 (rand-int 8999)))
                    :read-chan  (chan)
-                   :write-chan (chan) }
+                   :write-chan (chan)
+                   :heartbeat-period 5000
+                   :heartbeat-timeout (* 4 (:heartbeat-period opts 5000)) }
                  opts))
     (on-write-done)))
 
@@ -92,7 +94,12 @@
 
 (defn on-accepted [socket-ref net-chan]
   (swap! socket-ref assoc :state :not-accepting)
-  (let [new-socket-ref (new-socket :net-chan net-chan)]
+  (let [opts (merge
+               { :net-chan net-chan
+                 :read-chan  ((:read-chan-fn @socket-ref))
+                 :write-chan ((:write-chan-fn @socket-ref)) }
+               (select-keys @socket-ref [:heartbeat-period :heartbeat-timeout]))
+        new-socket-ref (new-socket opts)]
     (logging/debug "Accepted new socket" (:id @new-socket-ref))
     (on-connected new-socket-ref)
     (go
@@ -171,10 +178,10 @@
 
 (defn detect-stuck [sockets]
   (doseq [socket-ref @sockets
-          :let [{:keys [state last-read id]} @socket-ref]]
+          :let [{:keys [state last-read id heartbeat-timeout]} @socket-ref]]
     (when (and last-read
                (= state :connected)
-               (< (+ @last-read (* 4 heartbeat)) (now)))
+               (< (+ @last-read heartbeat-timeout) (now)))
       (logging/debug "Socket stuck" id)
       (close-net-chan socket-ref)
       (on-conn-dropped socket-ref))))
@@ -251,21 +258,44 @@
 
 ;; CLIENT INTERFACE
 
-(defn connect [env to]
+(defn connect
+  "env                  :: result of (event-loop)
+  to                    :: map of {:host <String> :port <int>}
+  Possible opts are:
+   - :read-chan         :: <chan> to populate with reads from socket, defaults to (chan)
+   - :write-chan        :: <chan> to schedule writes to socket, defaults to (chan)
+   - :heartbeat-period  :: Heartbeat interval, ms. Defaults to 5000
+   - :heartbeat-timeout :: When to consider connection stale. Default value is (* 4 heartbeat-period)"
+  [env to & {:as opts}]
   (let [addr (inet-addr to)
-        socket-ref (new-socket :addr  addr
-                               :state :connecting)]
+        socket-ref (new-socket (merge opts
+                                 {:addr  addr
+                                  :state :connecting}))]
     (swap! (:sockets env) conj socket-ref)
     (client-socket socket-ref)))
 
-(defn accept [env at]
+(defn accept
+  "env                  :: result of (event-loop)
+  at                    :: map of {:host <String> :port <int>}, :host defaults to wildcard address
+  Possible opts are:
+   - :accept-chan       :: <chan> to populate with accepted client sockets, defaults to (chan)
+  Following options will be translated to client sockets created by accept:
+   - :read-chan-fn      :: no-args fn returning <chan>, will be used to create :read-chan for accepted sockets
+   - :write-chan-fn     :: no-args fn returning <chan>, will be used to create :write-chan for accepted sockets
+   - :heartbeat-period  :: Heartbeat interval, ms. Default value is 5000
+   - :heartbeat-timeout :: When to consider connection stale. Default value is (* 4 heartbeat-period)"
+  [env at & {:as opts}]
   (let [addr (inet-addr at)
         net-chan   (doto (ServerSocketChannel/open)
                          (.setOption StandardSocketOptions/SO_REUSEADDR true)
                          (.bind addr)
                          (.configureBlocking false))
-        socket-ref (atom { :net-chan    net-chan
-                           :state       :accepting
-                           :accept-chan (chan) })]
+        socket-ref (atom (merge
+                           { :net-chan      net-chan
+                             :state         :accepting
+                             :accept-chan   (chan)
+                             :read-chan-fn  #(chan)
+                             :write-chan-fn #(chan) }
+                           opts))]
     (swap! (:sockets env) conj socket-ref)
     { :accept-chan (:accept-chan @socket-ref) }))

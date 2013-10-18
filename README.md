@@ -56,6 +56,25 @@ As a side-effect of this, you can start client *before* you start server. Once s
 (shutdown! <event-loop>)
 ```
 
+#### Configuring channels and heartbeats
+
+```clojure
+(connect <event-loop> <addr>
+  :read-chan        (chan (dropping-buffer 10))
+  :write-chan       (chan (sliding-buffer 7))
+  :heartbeat-period  8000
+  :heartbeat-timeout 24000)
+
+(accept <event-loop> <addr>
+  :accept-chan      (chan 2)
+  :read-chan-fn    #(chan (sliding-buffer 7))
+  :write-chan-fn   #(chan (dropping-buffer 10))
+  :heartbeat-period  8000
+  :heartbeat-timeout 24000)
+```
+
+Note thatn you'd better configure heartbeats the same way at both connecting and accepting sides.
+
 #### Sample echo server/client
 
 ```clojure
