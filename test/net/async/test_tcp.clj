@@ -1,7 +1,8 @@
 (ns net.async.test-tcp
   (:require
     [clojure.tools.logging :as logging]
-    [clojure.core.async :refer [>!! <!! chan close! go <! >! thread timeout alts!!]])
+    [clojure.core.async :refer [>!! <!! chan close! go <! >! thread timeout alts!!]]
+    [net.async.util :as util])
   (:use
     clojure.test
     net.async.tcp))
@@ -141,13 +142,8 @@
 ;; lein trampoline run -m net.async.test-tcp/test-server &
 ;; lein trampoline run -m net.async.test-tcp/test-client
 
-(defn parse-endpoint [endpoint]
-  (let [[_ host port] (re-matches #"(?:([^:]*)\:)?(\d+)" endpoint)]
-    {:host host
-     :port (Long/parseLong port)}))
-
 (defn test-server [& [endpoint]]
-  (let [addr     (parse-endpoint (or endpoint "127.0.0.1:8123"))
+  (let [addr     (util/parse-endpoint (or endpoint "127.0.0.1:8123"))
         acceptor (accept (event-loop) addr)]
     (loop []
       (logging/info "ACCEPTING")
@@ -167,7 +163,7 @@
     (logging/info "Acceptor thread finished")))
 
 (defn test-client [& [endpoint]]
-  (let [addr   (parse-endpoint (or endpoint "127.0.0.1:8123"))
+  (let [addr   (util/parse-endpoint (or endpoint "127.0.0.1:8123"))
         client (connect (event-loop) addr)
         id     (str (+ 100 (rand-int 899)))]
     (loop []

@@ -12,6 +12,12 @@ Here’s how it works:
 
 <img src="https://dl.dropboxusercontent.com/u/561580/lj/net.async.tcp_scheme.jpg" width=400 height=300/>
 
+#### Lein dependency
+
+    [net.async/async "0.1.0"]
+
+[![Build Status](https://travis-ci.org/tonsky/net.async.png?branch=master)](https://travis-ci.org/tonsky/net.async)
+
 #### Types
 
     <event-loop>    is { : running? <atom [true/false]> }
