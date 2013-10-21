@@ -6,11 +6,11 @@
     clojure.test
     net.async.tcp))
 
-(defn write-str [socket s]
+(defn write-str [socket ^String s]
   (>!! (:write-chan socket) (.getBytes s)))
 
 (defn read-str [socket]
-  (when-let [msg (<!! (:read-chan socket))]
+  (when-let [^bytes msg (<!! (:read-chan socket))]
     (cond
       (keyword? msg) msg
       :else          (String. msg))))
@@ -157,7 +157,7 @@
             (when-let [msg (<! (:read-chan server))]
               (if (keyword? msg)
                 (logging/info "status" msg)
-                (let [msg (String. msg)]
+                (let [msg (String. ^bytes msg)]
                   (logging/info "RECEIVED" msg)
                   (<! (timeout (rand-int 2000)))
                   (>! (:write-chan server) (.getBytes (str "ECHO/" msg)))))
@@ -174,7 +174,7 @@
       (let [msg (str id "-" (rand-int 100000))]
         (go (>! (:write-chan client) (.getBytes msg)))
         (loop []
-          (let [read (<!! (:read-chan client))]
+          (let [^bytes read (<!! (:read-chan client))]
             (logging/info "READ" (if (keyword? read) read (String. read)))
             (when (and (keyword? read)
                        (not= :connected read))

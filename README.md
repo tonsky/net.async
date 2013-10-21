@@ -62,6 +62,7 @@ As a side-effect of this, you can start client *before* you start server. Once s
 (connect <event-loop> <addr>
   :read-chan        (chan (dropping-buffer 10))
   :write-chan       (chan (sliding-buffer 7))
+  :reconnect-period  5000
   :heartbeat-period  8000
   :heartbeat-timeout 24000)
 

@@ -9,24 +9,24 @@
     [java.nio  ByteBuffer]
     [java.io   IOException]
     [java.net  InetSocketAddress StandardSocketOptions]
-    [java.nio.channels Selector SelectionKey ServerSocketChannel SocketChannel ClosedChannelException]))
+    [java.nio.channels Selector SelectionKey ServerSocketChannel SocketChannel SelectableChannel ClosedChannelException]))
 
 ;; UTILITY
 
-(defn inet-addr [{:keys [^String host ^Integer port]}]
+(defn ^InetSocketAddress inet-addr [{:keys [^String host ^Integer port]}]
   (if host
     (InetSocketAddress. host port)
     (InetSocketAddress. port)))
 
-(defn buf [size]
+(defn buf ^ByteBuffer [size]
   (ByteBuffer/allocate size))
 
 (defn buf-array [& xs]
   (into-array ByteBuffer xs))
 
-(defn in-thread [name f & args]
+(defn in-thread [^String name f & args]
   (doto
-    (Thread. ^Runnable #(try
+    (Thread. #(try
                 (apply f args)
                 (catch Throwable e
                   (logging/error e "thread died")))
@@ -39,8 +39,8 @@
 
 (defn on-read-ready [socket-ref]
   (let [{:keys [read-bufs read-chan]} @socket-ref
-        [head-buf body-buf] read-bufs]
-    (case (alength read-bufs)
+        [^ByteBuffer head-buf ^ByteBuffer body-buf] read-bufs]
+    (case (count read-bufs)
       1 (let [size (.getInt head-buf 0)]
           (if (zero? size)
             (.rewind head-buf) ;; heartbeat
@@ -56,7 +56,7 @@
   (when payload
     (if (empty? payload)
       (buf-array (doto (buf 4) (.putInt 0 0))) ;; heartbeat
-      (buf-array (doto (buf 4) (.putInt 0 (alength payload)))
+      (buf-array (doto (buf 4) (.putInt 0 (count payload)))
                  (ByteBuffer/wrap payload)))))
 
 (defn on-write-done [socket-ref]
@@ -76,6 +76,7 @@
     (atom (merge { :id         (str "/" (+ 1000 (rand-int 8999)))
                    :read-chan  (chan)
                    :write-chan (chan)
+                   :reconnect-period 1000
                    :heartbeat-period 5000
                    :heartbeat-timeout (* 4 (:heartbeat-period opts 5000)) }
                  opts))
@@ -108,15 +109,15 @@
     new-socket-ref))
 
 (defn on-conn-dropped [socket-ref]
-  (let [{:keys [state addr read-chan write-chan write-bufs]} @socket-ref]
+  (let [{:keys [state addr read-chan write-chan write-bufs reconnect-period]} @socket-ref]
     (swap! socket-ref dissoc :read-bufs)
-    (doseq [buf write-bufs] (.rewind buf))
+    (doseq [^ByteBuffer buf write-bufs] (.rewind buf))
     (if addr
       (do
         (swap! socket-ref assoc :state :disconnected)
         (go
           (>! read-chan :disconnected)
-          (<! (timeout 1000))
+          (<! (timeout reconnect-period))
           (swap! socket-ref assoc
                  :state :connecting)))
       (swap! socket-ref assoc :state :closed))))
@@ -130,7 +131,7 @@
 
 ;; EVENT LOOP
 
-(defn add-watches [{:keys [sockets selector running?]}]
+(defn add-watches [{:keys [sockets ^Selector selector running?]}]
   (add-watch running? :wakeup (fn [_ _ _ _] (.wakeup selector)))
   (add-watch sockets :wakeup
              (fn [_ _ old new]
@@ -147,11 +148,11 @@
       (and (= :connected state) (:write-bufs socket)) (bit-or SelectionKey/OP_WRITE))))
 
 (defn exhausted? [bufs]
-  (zero? (.remaining (last bufs))))
+  (zero? (.remaining ^ByteBuffer (last bufs))))
 
 (defn close-net-chan [socket-ref]
   (try
-    (when-let [net-chan (:net-chan @socket-ref)]
+    (when-let [^SelectableChannel net-chan (:net-chan @socket-ref)]
       (.close net-chan))
     (catch IOException e :ignore))
   (swap! socket-ref dissoc :net-chan))
@@ -186,7 +187,7 @@
       (close-net-chan socket-ref)
       (on-conn-dropped socket-ref))))
 
-(defn event-loop-impl [{:keys [sockets started? running? selector] :as env}]
+(defn event-loop-impl [{:keys [sockets started? running? ^Selector selector] :as env}]
   (add-watches env)
   (deliver started? true)
   (loop []
@@ -194,17 +195,17 @@
     (detect-stuck sockets)
     (detect-dead sockets)
     (doseq [socket-ref @sockets
-            :let [{:keys [net-chan state] :as socket} @socket-ref]]
+            :let [{:keys [^SelectableChannel net-chan state] :as socket} @socket-ref]]
       (let [opts (select-opts socket)]
         (when (and (not= 0 opts) net-chan)
           (.register net-chan selector opts socket-ref))))
     (.select selector 1000)
-    (doseq [key (.selectedKeys selector)
+    (doseq [^SelectionKey key (.selectedKeys selector)
             :let [socket-ref (.attachment key)
                   {:keys [net-chan read-bufs write-bufs last-read id]} @socket-ref]]
       (try
         (when (and (.isReadable key) net-chan read-bufs)
-          (let [read (.read net-chan read-bufs 0 (alength read-bufs))]
+          (let [read (.read ^SocketChannel net-chan read-bufs 0 (count read-bufs))]
             (reset! last-read (now))
             (if (= -1 read)
               (throw (ClosedChannelException.))
@@ -212,17 +213,17 @@
                 (on-read-ready socket-ref)))))
 
         (when (and (.isWritable key) net-chan write-bufs)
-          (.write net-chan write-bufs 0 (alength write-bufs))
+          (.write ^SocketChannel net-chan write-bufs 0 (count write-bufs))
           (when (exhausted? write-bufs)
             (on-write-done socket-ref)))
 
         (when (and (.isConnectable key) net-chan)
-          (.finishConnect net-chan)
+          (.finishConnect ^SocketChannel net-chan)
           (logging/debug "Connected" id)
           (on-connected socket-ref))
 
         (when (.isAcceptable key)
-          (let [new-net-chan (.accept net-chan)]
+          (let [new-net-chan (.accept ^ServerSocketChannel net-chan)]
             (.configureBlocking new-net-chan false)
             (swap! sockets conj (on-accepted socket-ref new-net-chan))))
 
