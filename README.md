@@ -10,7 +10,7 @@ This library is aimed at providing reliable, high-level, bidirectional message-o
 
 Here’s how it works:
 
-<img src="https://dl.dropboxusercontent.com/u/561580/lj/net.async.tcp_scheme.jpg" width=400 height=300/>
+<img src="https://s.tonsky.me/lj/net.async.tcp_scheme.jpg" width=400 height=300/>
 
 #### Lein dependency
 
