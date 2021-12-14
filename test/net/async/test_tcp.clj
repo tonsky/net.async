@@ -138,6 +138,19 @@
     (shutdown! host1)
     (shutdown! host2)))
 
+(deftest test-port-binding
+  (let [host0 (event-loop)
+        _ (accept host0 {:port 9791})
+        _ (shutdown! host0)
+        host1 (event-loop)
+        acceptor (try (accept host1 {:port 9791})
+                      :connected
+                      (catch java.net.BindException e
+                        :already-bound))]
+    (is (= :connected acceptor))
+
+    (shutdown! host1)))
+
 ;; SAMPLE ECHO SERVER
 ;; lein trampoline run -m net.async.test-tcp/test-server &
 ;; lein trampoline run -m net.async.test-tcp/test-client

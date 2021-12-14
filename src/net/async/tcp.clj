@@ -150,12 +150,17 @@
 (defn exhausted? [bufs]
   (zero? (.remaining ^ByteBuffer (last bufs))))
 
-(defn close-net-chan [socket-ref]
-  (try
-    (when-let [^SelectableChannel net-chan (:net-chan @socket-ref)]
-      (.close net-chan))
-    (catch IOException e :ignore))
-  (swap! socket-ref dissoc :net-chan))
+(defn close-net-chan
+  ([socket-ref]
+   (close-net-chan nil socket-ref))
+  ([selector socket-ref]
+   (try
+     (when-let [^SelectableChannel net-chan (:net-chan @socket-ref)]
+       (.close net-chan))
+     (when selector
+       (.close selector))
+     (catch IOException _ :ignore))
+   (swap! socket-ref dissoc :net-chan)))
 
 (defn detect-connecting [sockets]
   (doseq [socket-ref @sockets
@@ -242,7 +247,7 @@
     (when @running?
       (recur)))
     (doseq [socket-ref @sockets]
-      (close-net-chan socket-ref)))
+      (close-net-chan selector socket-ref)))
 
 (defn event-loop []
   (let [selector (Selector/open)
