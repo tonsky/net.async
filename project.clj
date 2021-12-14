@@ -1,4 +1,4 @@
-(defproject net.async/async "0.1.0"
+(defproject net.async/async "0.1.1"
   :description "Network communications with clojure.core.async interface"
   :license {:name     "Eclipse Public License - v 1.0"
             :url      "http://www.eclipse.org/legal/epl-v10.html"

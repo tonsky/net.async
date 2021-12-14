@@ -14,7 +14,7 @@ Here’s how it works:
 
 #### Lein dependency
 
-    [net.async/async "0.1.0"]
+    [net.async/async "0.1.1"]
 
 [![Build Status](https://travis-ci.org/tonsky/net.async.png?branch=master)](https://travis-ci.org/tonsky/net.async)
 
