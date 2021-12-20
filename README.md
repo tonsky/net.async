@@ -12,6 +12,23 @@ Here’s how it works:
 
 <img src="https://s.tonsky.me/lj/net.async.tcp_scheme.jpg" width=400 height=300/>
 
+Note:
+
+net.async is not a generic TCP library. You can’t for example implement SMTP with it. Instead, net.async is a message channel that uses TCP as transport. It abstracts details of TCP for you.
+
+#### Protocol
+
+Messages are encoded as this:
+
+```
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+| 4-byte message length | Message bytes |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+
+Heartbeats are just messages with legnth == 0.
+Message lenght’s byte order is big endian.
+
 #### Lein dependency
 
     [net.async/async "0.1.1"]
